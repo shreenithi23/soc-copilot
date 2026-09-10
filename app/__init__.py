@@ -1,0 +1,1 @@
+# SOC Copilot Core Application

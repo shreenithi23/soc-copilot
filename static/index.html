@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SOC Copilot | Multi-SIEM Threat Intelligence & AI Hunting Engine</title>
+  <meta name="description" content="Cybersecurity SOC Copilot leveraging Gemini LLM, LangChain conversational memory, SQLite, VirusTotal threat intelligence, and LangSmith pipeline evaluation across Splunk, Elastic, Sentinel, QRadar, and Wazuh.">
+  
+  <!-- Modern Typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+  <!-- Top SOC Header -->
+  <header class="soc-header">
+    <div class="brand-section">
+      <div class="brand-logo">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+        </svg>
+      </div>
+      <div>
+        <h1 class="brand-title">SOC Copilot</h1>
+        <div class="brand-subtitle">Multi-SIEM Defense &amp; Threat Intelligence Engine</div>
+      </div>
+    </div>
+
+    <div class="header-telemetry">
+      <div class="stat-pill cyan">
+        <span class="label">Total SIEM Logs</span>
+        <span class="value" id="statTotalLogs">0</span>
+      </div>
+      <div class="stat-pill danger">
+        <span class="label">Critical Alerts</span>
+        <span class="value" id="statCritical">0</span>
+      </div>
+      <div class="stat-pill danger">
+        <span class="label">VT Malicious Hits</span>
+        <span class="value" id="statVtMalicious">0</span>
+      </div>
+      <div class="stat-pill purple">
+        <span class="label">Cached Intel IOCs</span>
+        <span class="value" id="statVtCached">0</span>
+      </div>
+    </div>
+
+    <div class="header-actions">
+      <button class="btn btn-outline btn-sm" id="reloadSeedBtn" title="Reset preloaded multi-SIEM cyber attack scenario">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+        Reset Scenario
+      </button>
+      <button class="btn btn-outline btn-sm" id="openSettingsBtn" title="Configure Gemini, VirusTotal, and LangSmith Keys">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+        API Config
+      </button>
+    </div>
+  </header>
+
+  <!-- Navigation Bar -->
+  <nav class="soc-nav">
+    <button class="nav-tab active" data-target="pane-chat">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+      SOC Copilot Chat
+    </button>
+    <button class="nav-tab" data-target="pane-explorer">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"/></svg>
+      Multi-SIEM Log Explorer
+    </button>
+    <button class="nav-tab" data-target="pane-intel">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      Threat Intel &amp; VirusTotal Hub
+    </button>
+    <button class="nav-tab" data-target="pane-mitre">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+      MITRE ATT&amp;CK Matrix
+    </button>
+    <button class="nav-tab" data-target="pane-eval">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      LangSmith Pipeline &amp; Evaluation
+    </button>
+  </nav>
+
+  <!-- Main View Area -->
+  <main class="soc-main">
+
+    <!-- 1. SOC Copilot Chat Tab -->
+    <section class="tab-pane active" id="pane-chat">
+      <div class="chat-container">
+        
+        <!-- Left: Hunting Sessions Sidebar -->
+        <aside class="chat-sidebar">
+          <div class="panel-header">
+            <span class="panel-title">
+              <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+              Hunting Sessions
+            </span>
+            <button class="btn btn-outline btn-sm" id="newSessionBtn" title="Start new context session">+ New</button>
+          </div>
+          <div class="sessions-list" id="sessionsList">
+            <!-- Dynamic session items -->
+          </div>
+        </aside>
+
+        <!-- Center: Interactive Chat -->
+        <div class="chat-center">
+          <div class="chat-messages" id="chatMessages">
+            <div class="message-bubble assistant">
+              <div class="avatar ai-avatar">
+                <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+              </div>
+              <div class="message-content-wrapper">
+                <div class="message-meta">
+                  <span>SOC Copilot</span> • <span>Memory-Enabled Engine</span>
+                </div>
+                <div class="message-text">
+                  <h3>SOC Threat Hunting Engine Ready</h3>
+                  <p>I am primed to analyze security events across <strong>Splunk</strong>, <strong>Elastic</strong>, <strong>Sentinel</strong>, <strong>QRadar</strong>, and <strong>Wazuh</strong>.</p>
+                  <p>Conversational memory is active in SQLite to retain context across investigation steps. IOCs are automatically cross-referenced with real-time <strong>VirusTotal v3</strong> intelligence.</p>
+                  <p>Select a quick investigation prompt below or ask your own question to begin.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Quick Investigation Prompts -->
+          <div class="quick-prompts">
+            <button class="prompt-chip" data-prompt="Triage all critical and high severity alerts across all SIEM sources. Reconstruct the attack timeline.">🚨 Triage Critical Alerts</button>
+            <button class="prompt-chip" data-prompt="Check IP 185.220.101.5 on VirusTotal and explain the Cobalt Strike C2 activity observed in Splunk.">🔴 Investigate C2 IP on VirusTotal</button>
+            <button class="prompt-chip" data-prompt="Map all detected indicators to the MITRE ATT&CK matrix and identify lateral movement.">🗺️ Map MITRE ATT&CK Matrix</button>
+            <button class="prompt-chip" data-prompt="Draft a prioritized Incident Response Playbook for host 10.0.4.15 and user victim_jdoe.">⚡ Generate Containment Playbook</button>
+          </div>
+
+          <!-- Chat Input -->
+          <div class="chat-input-area">
+            <div class="chat-input-wrapper">
+              <input type="text" id="chatInput" class="chat-input" placeholder="Ask SOC Copilot (e.g., 'What malicious hashes were detected in the Elastic logs?')..." autocomplete="off">
+            </div>
+            <button class="btn btn-primary" id="chatSendBtn">
+              <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
+              Send
+            </button>
+          </div>
+        </div>
+
+        <!-- Right: Correlated Context & VirusTotal Panel -->
+        <aside class="chat-intel-panel">
+          <div class="panel-header">
+            <span class="panel-title">
+              <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              Grounded Telemetry
+            </span>
+          </div>
+          <div class="intel-context-section">
+            <div class="intel-card">
+              <div class="intel-card-title">
+                <span>Active VirusTotal Hits</span>
+              </div>
+              <div id="activeIocsList">
+                <div class="text-dim" style="font-size:0.75rem; text-align:center; padding:1rem;">No IOCs in active query</div>
+              </div>
+            </div>
+
+            <div class="intel-card" style="flex: 1; display:flex; flex-direction:column;">
+              <div class="intel-card-title">
+                <span>Correlated SIEM Logs</span>
+              </div>
+              <div id="contextLogsList" style="flex:1; overflow-y:auto;">
+                <div class="text-dim" style="font-size:0.75rem; text-align:center; padding:1rem;">No query context yet</div>
+              </div>
+            </div>
+          </div>
+        </aside>
+
+      </div>
+    </section>
+
+    <!-- 2. Multi-SIEM Log Explorer Tab -->
+    <section class="tab-pane" id="pane-explorer">
+      <div class="explorer-container">
+        
+        <!-- Filter Toolbar -->
+        <div class="explorer-toolbar">
+          <div class="filter-group">
+            <label class="form-label" style="margin-bottom:0;">SIEM Source:</label>
+            <select id="logSourceFilter" class="select-ctrl">
+              <option value="all">All SIEM Tools</option>
+              <option value="Splunk">Splunk</option>
+              <option value="Elastic">Elastic (ELK / ECS)</option>
+              <option value="Sentinel">Microsoft Sentinel</option>
+              <option value="QRadar">IBM QRadar (LEEF)</option>
+              <option value="Wazuh">Wazuh (OSSEC)</option>
+            </select>
+
+            <label class="form-label" style="margin-bottom:0;">Severity:</label>
+            <select id="logSeverityFilter" class="select-ctrl">
+              <option value="all">All Severities</option>
+              <option value="CRITICAL">Critical</option>
+              <option value="HIGH">High</option>
+              <option value="MEDIUM">Medium</option>
+              <option value="LOW">Low</option>
+              <option value="INFORMATIONAL">Informational</option>
+            </select>
+
+            <input type="text" id="logSearchInput" class="input-ctrl" placeholder="Search IP, hash, user, alert..." style="width: 240px;">
+          </div>
+
+          <div style="display:flex; gap:0.5rem; align-items:center;">
+            <span class="badge badge-source" id="logCountBadge">0 Events</span>
+            <button class="btn btn-primary btn-sm" id="ingestModalBtn">
+              <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+              Ingest Logs
+            </button>
+          </div>
+        </div>
+
+        <!-- Log Table -->
+        <div class="log-table-wrapper">
+          <table class="soc-table">
+            <thead>
+              <tr>
+                <th style="width: 100px;">SIEM</th>
+                <th style="width: 105px;">Severity</th>
+                <th style="width: 150px;">Timestamp</th>
+                <th>Alert Signature / Event</th>
+                <th>Source ➔ Destination</th>
+                <th>User / Entity</th>
+                <th style="width: 90px;">Action</th>
+              </tr>
+            </thead>
+            <tbody id="logTableBody">
+              <!-- Dynamically rendered -->
+            </tbody>
+          </table>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- 3. Threat Intel & VirusTotal Hub Tab -->
+    <section class="tab-pane" id="pane-intel">
+      <div class="intel-hub-grid">
+        
+        <!-- Left: Real-Time VirusTotal IOC Scanner -->
+        <div class="scanner-card">
+          <div class="panel-title">
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+            VirusTotal Real-Time Scanner
+          </div>
+          <p style="font-size:0.78rem; color:var(--text-muted);">
+            Query any IP, domain, or file hash against the VirusTotal v3 API with local SQLite cache fallback.
+          </p>
+
+          <div class="form-group">
+            <input type="text" id="iocScanInput" class="input-ctrl" placeholder="e.g. 185.220.101.5 or update-microsoft-cloud.top" value="185.220.101.5">
+          </div>
+
+          <button class="btn btn-primary" id="btnScanIoc">
+            <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+            Analyze IOC
+          </button>
+
+          <!-- Scan Result View -->
+          <div id="vtScanResultContainer" class="vt-radar-result" style="display:none;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <strong id="vtIndicatorDisplay" style="color:var(--text-main); font-family:var(--font-mono); font-size:0.85rem;"></strong>
+              <span class="badge badge-source" id="vtIocType">IP</span>
+            </div>
+
+            <div class="score-meter">
+              <div id="vtScoreCircle" class="score-circle malicious">
+                <span id="vtScoreNum" style="font-size:1.4rem;">68</span>
+                <span id="vtScoreTotal" style="font-size:0.65rem; color:var(--text-dim);">/72</span>
+              </div>
+              <div>
+                <div style="font-size:0.85rem; font-weight:700; color:var(--text-main);">Threat Reputation</div>
+                <div style="font-size:0.75rem; color:var(--text-dim);">Score: <strong id="vtReputationNum" style="color:var(--accent-red);">-85</strong></div>
+                <div style="font-size:0.68rem; color:var(--accent-blue);" id="vtSourceLabel">VirusTotal v3</div>
+              </div>
+            </div>
+
+            <div id="vtTagsContainer"></div>
+
+            <div style="margin-top:0.35rem;">
+              <div class="intel-card-title">Detection Engines</div>
+              <div id="vtEngineDetections" style="max-height: 140px; overflow-y:auto;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Cached Threat Intelligence Registry -->
+        <div class="scanner-card" style="overflow:hidden;">
+          <div class="panel-title">
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+            Threat Intelligence Registry (SQLite Cache)
+          </div>
+          <div class="log-table-wrapper" style="margin-top:0.5rem; max-height: calc(100vh - 250px);">
+            <table class="soc-table">
+              <thead>
+                <tr>
+                  <th>Type</th>
+                  <th>Indicator</th>
+                  <th>VirusTotal Score</th>
+                  <th>Reputation</th>
+                  <th>Tags</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="cachedIntelTableBody">
+                <!-- Dynamically loaded cached IOCs -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- 4. MITRE ATT&CK Matrix Tab -->
+    <section class="tab-pane" id="pane-mitre">
+      <div style="display:flex; flex-direction:column; gap:1rem; flex:1;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div>
+            <h2 style="font-size:1.15rem; color:var(--text-main);">MITRE ATT&amp;CK Enterprise Kill-Chain Mapping</h2>
+            <p style="font-size:0.75rem; color:var(--text-muted);">Correlating attacks across Splunk, Elastic, Microsoft Sentinel, IBM QRadar, and Wazuh</p>
+          </div>
+        </div>
+
+        <div class="mitre-grid" id="mitreGrid">
+          <!-- Dynamically populated kill-chain columns -->
+        </div>
+      </div>
+    </section>
+
+    <!-- 5. LangSmith Pipeline & Evaluation Tab -->
+    <section class="tab-pane" id="pane-eval">
+      <div class="eval-dashboard">
+        
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div>
+            <h2 style="font-size:1.15rem; color:var(--text-main);">LangSmith Pipeline Management &amp; Evaluation</h2>
+            <p style="font-size:0.75rem; color:var(--text-muted);">Automated benchmarking of threat triage accuracy, IOC extraction precision, and LangChain memory fidelity</p>
+          </div>
+          <button class="btn btn-primary" id="btnRunLangSmithEval">
+            <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/></svg>
+            Run Pipeline Evaluation
+          </button>
+        </div>
+
+        <!-- Metric KPI Cards -->
+        <div class="eval-summary-cards">
+          <div class="eval-metric-card">
+            <span class="title">Accuracy Score</span>
+            <span class="metric" id="evalAccuracyDisplay">100%</span>
+          </div>
+          <div class="eval-metric-card">
+            <span class="title">Average Latency</span>
+            <span class="metric" id="evalLatencyDisplay">1.2ms</span>
+          </div>
+          <div class="eval-metric-card">
+            <span class="title">Test Cases Passed</span>
+            <span class="metric" id="evalPassedDisplay">5/5</span>
+          </div>
+          <div class="eval-metric-card">
+            <span class="title">LangSmith Tracing</span>
+            <span class="metric" id="evalSyncStatus" style="font-size:1.2rem; color:var(--accent-green);">Local Benchmark</span>
+          </div>
+        </div>
+
+        <!-- Benchmark Tests Table -->
+        <div class="scanner-card">
+          <div class="panel-title">Pipeline Evaluation Benchmark Test Cases</div>
+          <div class="log-table-wrapper" style="margin-top:0.5rem;">
+            <table class="soc-table">
+              <thead>
+                <tr>
+                  <th style="width:90px;">Test ID</th>
+                  <th>Benchmark Name</th>
+                  <th style="width:100px;">Status</th>
+                  <th style="width:120px;">Latency</th>
+                  <th>Test Verification Result</th>
+                </tr>
+              </thead>
+              <tbody id="evalBenchmarkTableBody">
+                <!-- Dynamically loaded test runs -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Log Inspector Modal -->
+  <div class="modal-overlay" id="logInspectorModal">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <div style="display:flex; gap:0.5rem; align-items:center;">
+          <span id="inspectSiemSource" class="badge badge-source">Splunk</span>
+          <span id="inspectSeverity" class="badge badge-critical">CRITICAL</span>
+          <strong id="inspectAlertName" style="color:var(--text-main); font-size:0.85rem;">Alert Details</strong>
+        </div>
+      </div>
+      <div class="modal-body" style="max-height: 70vh; overflow-y:auto;">
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:0.75rem; font-size:0.75rem;">
+          <div><strong style="color:var(--text-dim);">Timestamp:</strong> <span id="inspectTimestamp" style="font-family:var(--font-mono);"></span></div>
+          <div><strong style="color:var(--text-dim);">User / Entity:</strong> <span id="inspectUser" style="color:var(--accent-cyan); font-family:var(--font-mono);"></span></div>
+          <div><strong style="color:var(--text-dim);">Src ➔ Dest:</strong> <span id="inspectSrcDest" style="font-family:var(--font-mono);"></span></div>
+          <div><strong style="color:var(--text-dim);">Domain:</strong> <span id="inspectDomain" style="font-family:var(--font-mono);"></span></div>
+          <div style="grid-column: span 2;"><strong style="color:var(--text-dim);">File Hash:</strong> <span id="inspectFileHash" style="font-family:var(--font-mono); font-size:0.7rem;"></span></div>
+        </div>
+
+        <div>
+          <div class="form-label">Normalized Details (JSON)</div>
+          <pre style="background:#050811; padding:0.6rem; border-radius:6px; font-size:0.72rem; overflow-x:auto;"><code id="inspectDetailsJson" style="color:#38bdf8;"></code></pre>
+        </div>
+
+        <div>
+          <div class="form-label">Raw Ingested Log Record</div>
+          <pre style="background:#050811; padding:0.6rem; border-radius:6px; font-size:0.72rem; overflow-x:auto; white-space:pre-wrap;"><code id="inspectRawLog" style="color:#94a3b8;"></code></pre>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" id="btnCloseInspector">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Ingest Logs Modal -->
+  <div class="modal-overlay" id="ingestModal">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <strong style="color:var(--text-main); font-size:0.95rem;">Ingest Security Log Dataset</strong>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">SIEM Tool / Format Specification</label>
+          <select id="ingestFormatSelect" class="select-ctrl">
+            <option value="auto">Auto-Detect Format (Splunk, Elastic, Sentinel, QRadar, Wazuh)</option>
+            <option value="splunk">Splunk CIM / KV / Syslog</option>
+            <option value="elastic">Elastic Common Schema (ECS)</option>
+            <option value="sentinel">Microsoft Sentinel SecurityAlert</option>
+            <option value="qradar">IBM QRadar LEEF 2.0</option>
+            <option value="wazuh">Wazuh JSON Alerts</option>
+            <option value="csv">Standard Security CSV</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Option A: Upload Log File (.json, .csv, .log, .txt)</label>
+          <input type="file" id="ingestFileInput" class="input-ctrl">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Option B: Paste Raw Log Records or JSON Array</label>
+          <textarea id="ingestRawText" class="input-ctrl" rows="5" placeholder='Paste logs here (e.g. LEEF:2.0|... or [{"sourcetype": "WinEventLog", ...}])'></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" id="btnCloseIngestModal">Cancel</button>
+        <button class="btn btn-primary" id="btnExecuteIngest">Ingest &amp; Normalize</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- API Key & Settings Modal -->
+  <div class="modal-overlay" id="settingsModal">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <strong style="color:var(--text-main); font-size:0.95rem;">API Key &amp; Pipeline Configuration</strong>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">
+            <span>Google Gemini API Key</span>
+            <span style="color:var(--accent-cyan);">Powers LangChain LLM Engine</span>
+          </label>
+          <input type="password" id="geminiKeyInput" class="input-ctrl" placeholder="Enter Gemini API Key">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">
+            <span>VirusTotal v3 API Key</span>
+            <span style="color:var(--accent-red);">Real-time Threat Intelligence</span>
+          </label>
+          <input type="password" id="vtKeyInput" class="input-ctrl" placeholder="Enter VirusTotal v3 API Key">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">
+            <span>LangSmith API Key</span>
+            <span style="color:var(--accent-purple);">Pipeline Tracing &amp; Evaluation</span>
+          </label>
+          <input type="password" id="langsmithKeyInput" class="input-ctrl" placeholder="Enter LangSmith API Key">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">LangSmith Project Name</label>
+          <input type="text" id="langsmithProjectInput" class="input-ctrl" value="soc-copilot">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" id="btnCloseSettings">Cancel</button>
+        <button class="btn btn-primary" id="btnSaveSettings">Save Credentials</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- Frontend Logic -->
+  <script src="/static/js/app.js"></script>
+</body>
+</html>

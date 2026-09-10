@@ -1,0 +1,35 @@
+# Environment variables & secrets (CRITICAL)
+.env
+.env.local
+!.env.example
+
+# Virtual Environment
+venv/
+env/
+ENV/
+
+# Python cache & bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# SQLite Databases & temporary test data
+*.db
+*.sqlite3
+test_soc.db
+soc_copilot.db
+
+# macOS files
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# IDEs & Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log

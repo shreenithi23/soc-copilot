@@ -1,4 +1,4 @@
-// Multi-SIEM SOC Copilot Frontend Logic
+// Multi-SIEM SOC Copilot Frontend Logic — Enterprise Operations Console
 let currentSessionId = null;
 let allCachedIntel = [];
 let activeLogs = [];
@@ -19,19 +19,19 @@ document.addEventListener("DOMContentLoaded", () => {
   loadThreatIntelHub();
 });
 
-// Toast notification helper
+// Toast notification helper (No emojis, crisp status indicators)
 function showToast(message, type = "success") {
   const container = document.getElementById("toastContainer");
+  if (!container) return;
   const toast = document.createElement("div");
   toast.className = `toast ${type}`;
   toast.innerHTML = `
-    <span>${type === "success" ? "✓" : "⚠"}</span>
-    <span>${message}</span>
+    <span style="font-weight:600; color: ${type === 'success' ? 'var(--color-success)' : 'var(--color-critical)'};">[${type === "success" ? "OK" : "ERR"}]</span>
+    <span>${escapeHtml(message)}</span>
   `;
   container.appendChild(toast);
   setTimeout(() => {
-    toast.style.opacity = "0";
-    setTimeout(() => toast.remove(), 300);
+    toast.remove();
   }, 3500);
 }
 
@@ -40,8 +40,12 @@ function initTabs() {
   const tabs = document.querySelectorAll(".nav-tab");
   tabs.forEach(tab => {
     tab.addEventListener("click", () => {
-      tabs.forEach(t => t.classList.remove("active"));
+      tabs.forEach(t => {
+        t.classList.remove("active");
+        t.setAttribute("aria-selected", "false");
+      });
       tab.classList.add("active");
+      tab.setAttribute("aria-selected", "true");
 
       const targetId = tab.dataset.target;
       document.querySelectorAll(".tab-pane").forEach(pane => {
@@ -64,10 +68,15 @@ async function refreshTelemetry() {
     const res = await fetch("/api/stats");
     const data = await res.json();
 
-    document.getElementById("statTotalLogs").textContent = data.total_logs || 0;
-    document.getElementById("statCritical").textContent = data.critical_alerts || 0;
-    document.getElementById("statVtMalicious").textContent = data.vt_malicious || 0;
-    document.getElementById("statVtCached").textContent = data.vt_cached || 0;
+    const statTotalLogs = document.getElementById("statTotalLogs");
+    const statCritical = document.getElementById("statCritical");
+    const statVtMalicious = document.getElementById("statVtMalicious");
+    const statVtCached = document.getElementById("statVtCached");
+
+    if (statTotalLogs) statTotalLogs.textContent = data.total_logs || 0;
+    if (statCritical) statCritical.textContent = data.critical_alerts || 0;
+    if (statVtMalicious) statVtMalicious.textContent = data.vt_malicious || 0;
+    if (statVtCached) statVtCached.textContent = data.vt_cached || 0;
   } catch (err) {
     console.error("Failed to load telemetry stats:", err);
   }
@@ -86,44 +95,54 @@ function initChat() {
     sendChatMessage(text);
   };
 
-  sendBtn.addEventListener("click", submitQuery);
-  input.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      submitQuery();
-    }
-  });
+  if (sendBtn) sendBtn.addEventListener("click", submitQuery);
+  if (input) {
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        submitQuery();
+      }
+    });
+  }
 
-  newSessionBtn.addEventListener("click", () => {
-    currentSessionId = null;
-    document.getElementById("chatMessages").innerHTML = `
-      <div class="message-bubble assistant">
-        <div class="avatar ai-avatar">
-          <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-        </div>
-        <div class="message-content-wrapper">
-          <div class="message-meta">
-            <span>SOC Copilot</span> • <span>Memory Session Initialized</span>
+  if (newSessionBtn) {
+    newSessionBtn.addEventListener("click", () => {
+      currentSessionId = null;
+      const chatMessages = document.getElementById("chatMessages");
+      if (chatMessages) {
+        chatMessages.innerHTML = `
+          <div class="message-bubble assistant">
+            <div class="avatar ai-avatar">AI</div>
+            <div class="message-content-wrapper">
+              <div class="message-meta">
+                <span class="meta-sender">SOC Copilot</span>
+                <span class="meta-sep">&bull;</span>
+                <span class="meta-info">New Session Initialized</span>
+              </div>
+              <div class="message-text">
+                <p>New investigation session started. Correlation engine and conversational memory are active.</p>
+              </div>
+            </div>
           </div>
-          <div class="message-text">
-            <strong>Ready for Multi-SIEM Threat Hunting.</strong><br>
-            Context memory is active. I can correlate alerts across Splunk, Elastic, Sentinel, QRadar, and Wazuh, cross-reference IOCs with VirusTotal v3, and generate incident response playbooks.
-          </div>
-        </div>
-      </div>
-    `;
-    document.getElementById("contextLogsList").innerHTML = `<div class="text-dim" style="font-size:0.75rem; text-align:center; padding:1rem;">No query context yet</div>`;
-    document.getElementById("activeIocsList").innerHTML = `<div class="text-dim" style="font-size:0.75rem; text-align:center; padding:1rem;">No IOCs in active query</div>`;
-    loadSessions();
-    showToast("New hunting investigation session started");
-  });
+        `;
+      }
+      const contextLogsList = document.getElementById("contextLogsList");
+      const activeIocsList = document.getElementById("activeIocsList");
+      if (contextLogsList) contextLogsList.innerHTML = `<div class="empty-state-text">No correlated logs associated with current query.</div>`;
+      if (activeIocsList) activeIocsList.innerHTML = `<div class="empty-state-text">No active indicators in current prompt context.</div>`;
+      loadSessions();
+      showToast("New hunting investigation session initialized");
+    });
+  }
 
-  // Quick investigation prompt chips
-  document.querySelectorAll(".prompt-chip").forEach(chip => {
-    chip.addEventListener("click", () => {
-      const prompt = chip.dataset.prompt;
-      input.value = prompt;
-      submitQuery();
+  // Quick investigation prompt buttons
+  document.querySelectorAll(".prompt-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const prompt = btn.dataset.prompt;
+      if (input && prompt) {
+        input.value = prompt;
+        submitQuery();
+      }
     });
   });
 }
@@ -133,14 +152,16 @@ async function loadSessions() {
     const res = await fetch("/api/chat/sessions");
     const sessions = await res.json();
     const list = document.getElementById("sessionsList");
+    if (!list) return;
     list.innerHTML = "";
 
     sessions.forEach((s, idx) => {
       const item = document.createElement("div");
       item.className = `session-item ${s.id === currentSessionId || (!currentSessionId && idx === 0) ? "active" : ""}`;
+      item.setAttribute("role", "option");
       item.innerHTML = `
-        <div class="title">${s.title || "Hunting Investigation"}</div>
-        <div class="date">${new Date(s.updated_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} • ${s.id.slice(0, 8)}</div>
+        <div class="title">${escapeHtml(s.title || "Investigation Session")}</div>
+        <div class="date">${new Date(s.updated_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} &bull; ${escapeHtml(s.id.slice(0, 8))}</div>
       `;
       item.addEventListener("click", () => {
         document.querySelectorAll(".session-item").forEach(i => i.classList.remove("active"));
@@ -165,20 +186,21 @@ async function loadSessionHistory(sessionId) {
     const res = await fetch(`/api/chat/history/${sessionId}`);
     const history = await res.json();
     const chatMessages = document.getElementById("chatMessages");
+    if (!chatMessages) return;
     chatMessages.innerHTML = "";
 
     if (history.length === 0) {
       chatMessages.innerHTML = `
         <div class="message-bubble assistant">
-          <div class="avatar ai-avatar">
-            <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-          </div>
+          <div class="avatar ai-avatar">AI</div>
           <div class="message-content-wrapper">
             <div class="message-meta">
-              <span>SOC Copilot</span> • <span>Ready</span>
+              <span class="meta-sender">SOC Copilot</span>
+              <span class="meta-sep">&bull;</span>
+              <span class="meta-info">Ready</span>
             </div>
             <div class="message-text">
-              <strong>Investigation session loaded.</strong> Ask questions or select a prompt below to begin analyzing logs.
+              <p>Investigation session loaded. Submit a query or select an action to analyze SIEM telemetry.</p>
             </div>
           </div>
         </div>
@@ -207,25 +229,25 @@ async function loadSessionHistory(sessionId) {
 async function sendChatMessage(text) {
   appendChatMessageUI("user", text);
 
-  // Loading skeleton placeholder
+  // Loading indicator
   const loadingId = "loading-" + Date.now();
   const chatMessages = document.getElementById("chatMessages");
   const loadingBubble = document.createElement("div");
   loadingBubble.id = loadingId;
   loadingBubble.className = "message-bubble assistant";
   loadingBubble.innerHTML = `
-    <div class="avatar ai-avatar">
-      <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-    </div>
+    <div class="avatar ai-avatar">AI</div>
     <div class="message-content-wrapper">
-      <div class="message-meta"><span>SOC Copilot</span> • <span>Analyzing Multi-SIEM Logs & VT Intelligence...</span></div>
-      <div class="message-text" style="color: var(--text-dim); font-style: italic;">
-        Correlating telemetry across SIEM sources and querying VirusTotal v3 indicators...
+      <div class="message-meta"><span class="meta-sender">SOC Copilot</span> &bull; <span>Querying SIEM Telemetry &amp; VirusTotal...</span></div>
+      <div class="message-text" style="color: var(--text-muted); font-family: var(--font-mono); font-size: 11px;">
+        Executing multi-SIEM correlation and checking IOC threat indicators...
       </div>
     </div>
   `;
-  chatMessages.appendChild(loadingBubble);
-  chatMessages.scrollTop = chatMessages.scrollHeight;
+  if (chatMessages) {
+    chatMessages.appendChild(loadingBubble);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+  }
 
   try {
     const res = await fetch("/api/chat", {
@@ -254,35 +276,29 @@ async function sendChatMessage(text) {
     loadSessions();
   } catch (err) {
     loadingBubble.remove();
-    appendChatMessageUI("assistant", `⚠️ Error executing SOC Copilot query: ${err.message}`);
+    appendChatMessageUI("assistant", `[ERROR] Failed to execute SOC Copilot query: ${err.message}`);
   }
 }
 
 function appendChatMessageUI(role, content, meta = {}) {
   const chatMessages = document.getElementById("chatMessages");
+  if (!chatMessages) return;
   const bubble = document.createElement("div");
   bubble.className = `message-bubble ${role}`;
 
   const isAI = role === "assistant";
-  const avatarHtml = isAI ? `
-    <div class="avatar ai-avatar">
-      <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-    </div>
-  ` : `
-    <div class="avatar user-avatar">
-      <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
-    </div>
-  `;
+  const avatarText = isAI ? "AI" : "SOC";
+  const avatarClass = isAI ? "ai-avatar" : "user-avatar";
 
   let metaText = isAI ? "SOC Copilot" : "Senior SOC Analyst";
-  if (meta.model) metaText += ` • ${meta.model}`;
-  if (meta.latency) metaText += ` • ${meta.latency}ms`;
+  if (meta.model) metaText += ` &bull; ${escapeHtml(meta.model)}`;
+  if (meta.latency) metaText += ` &bull; ${escapeHtml(String(meta.latency))}ms`;
 
   bubble.innerHTML = `
-    ${avatarHtml}
+    <div class="avatar ${avatarClass}">${avatarText}</div>
     <div class="message-content-wrapper">
       <div class="message-meta">
-        <span>${metaText}</span>
+        <span class="meta-sender">${metaText}</span>
       </div>
       <div class="message-text">${formatMarkdown(content)}</div>
     </div>
@@ -292,7 +308,7 @@ function appendChatMessageUI(role, content, meta = {}) {
   chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
-// Markdown formatter helper
+// Markdown formatter helper (zero emoji injection)
 function formatMarkdown(text) {
   if (!text) return "";
   let html = text
@@ -305,9 +321,9 @@ function formatMarkdown(text) {
     .replace(/\*(.*?)\*/gim, '<em>$1</em>')
     .replace(/`([^`]+)`/gim, '<code>$1</code>')
     // alerts
-    .replace(/&gt; \[!TIP\]/gim, '<blockquote style="border-left-color: var(--accent-cyan);">💡')
-    .replace(/&gt; \[!WARNING\]/gim, '<blockquote style="border-left-color: var(--accent-amber);">⚠️')
-    .replace(/&gt; \[!IMPORTANT\]/gim, '<blockquote style="border-left-color: var(--accent-red);">🚨')
+    .replace(/&gt; \[!TIP\]/gim, '<blockquote style="border-left-color: var(--color-low);">[TIP]')
+    .replace(/&gt; \[!WARNING\]/gim, '<blockquote style="border-left-color: var(--color-medium);">[WARNING]')
+    .replace(/&gt; \[!IMPORTANT\]/gim, '<blockquote style="border-left-color: var(--color-critical);">[IMPORTANT]')
     // tables
     .replace(/\|(.+)\|/g, function(match) {
       const cells = match.split('|').filter(c => c.trim().length > 0);
@@ -327,33 +343,37 @@ function formatMarkdown(text) {
 }
 
 function renderSideContext(logs = [], threatIntel = {}) {
-  // Context Logs List
+  // Correlated Logs List
   const logsList = document.getElementById("contextLogsList");
-  if (!logs || logs.length === 0) {
-    logsList.innerHTML = `<div class="text-dim" style="font-size:0.75rem; text-align:center; padding:1rem;">No correlated logs</div>`;
-  } else {
-    logsList.innerHTML = logs.map(l => `
-      <div style="background: rgba(0,0,0,0.3); padding: 0.45rem 0.6rem; border-radius: 6px; margin-bottom: 0.4rem; border-left: 3px solid ${getSeverityColor(l.severity)}; font-size: 0.72rem;">
-        <div style="display:flex; justify-content:space-between; margin-bottom:0.2rem;">
-          <strong style="color:var(--text-main); font-family:var(--font-mono);">${l.siem_source}</strong>
-          <span class="badge badge-${(l.severity || 'low').toLowerCase()}">${l.severity}</span>
+  if (logsList) {
+    if (!logs || logs.length === 0) {
+      logsList.innerHTML = `<div class="empty-state-text">No correlated logs associated with current query.</div>`;
+    } else {
+      logsList.innerHTML = logs.map(l => `
+        <div style="background: #080c14; padding: 4px 6px; border-left: 2px solid ${getSeverityColor(l.severity)}; border-radius: var(--radius-xs); margin-bottom: 3px; font-size: 11px;">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <strong style="font-family:var(--font-mono); font-size:10px;">${escapeHtml(l.siem_source)}</strong>
+            <span class="tag tag-${(l.severity || 'low').toLowerCase()}">${escapeHtml(l.severity)}</span>
+          </div>
+          <div style="color:var(--text-secondary); font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin: 1px 0;">${escapeHtml(l.alert_name)}</div>
+          <div style="color:#38bdf8; font-family:var(--font-mono); font-size:10px;">
+            ${escapeHtml(l.src_ip || 'N/A')} &rarr; ${escapeHtml(l.dest_ip || 'N/A')}
+          </div>
         </div>
-        <div style="color:var(--text-muted); font-size:0.7rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${l.alert_name}</div>
-        <div style="color:var(--accent-blue); font-family:var(--font-mono); font-size:0.66rem; margin-top:0.2rem;">
-          ${l.src_ip || 'N/A'} ➔ ${l.dest_ip || 'N/A'}
-        </div>
-      </div>
-    `).join('');
+      `).join('');
+    }
   }
 
   // Active IOCs & VirusTotal
   const iocsList = document.getElementById("activeIocsList");
+  if (!iocsList) return;
+
   const ips = Object.entries(threatIntel?.ips || {});
   const hashes = Object.entries(threatIntel?.hashes || {});
   const domains = Object.entries(threatIntel?.domains || {});
 
   if (ips.length === 0 && hashes.length === 0 && domains.length === 0) {
-    iocsList.innerHTML = `<div class="text-dim" style="font-size:0.75rem; text-align:center; padding:1rem;">No IOCs detected</div>`;
+    iocsList.innerHTML = `<div class="empty-state-text">No active indicators in current prompt context.</div>`;
     return;
   }
 
@@ -361,10 +381,10 @@ function renderSideContext(logs = [], threatIntel = {}) {
   ips.forEach(([ip, info]) => {
     const isMal = info.malicious_count > 0;
     html += `
-      <div class="ioc-pill ${isMal ? '' : 'clean'}">
-        <div class="ioc-val" title="${ip}">${ip}</div>
-        <span class="ioc-vt-badge ${isMal ? 'malicious' : 'clean'}">
-          ${isMal ? `🔴 ${info.malicious_count} VT Hits` : '🟢 Clean'}
+      <div class="ioc-entry ${isMal ? '' : 'clean'}">
+        <span class="ioc-val" title="${escapeHtml(ip)}">${escapeHtml(ip)}</span>
+        <span class="tag ${isMal ? 'tag-critical' : 'tag-clean'}">
+          ${isMal ? `VT: ${info.malicious_count}/72` : 'CLEAN'}
         </span>
       </div>
     `;
@@ -372,10 +392,10 @@ function renderSideContext(logs = [], threatIntel = {}) {
   hashes.forEach(([h, info]) => {
     const isMal = info.malicious_count > 0;
     html += `
-      <div class="ioc-pill ${isMal ? '' : 'clean'}">
-        <div class="ioc-val" title="${h}">${h.slice(0, 16)}...</div>
-        <span class="ioc-vt-badge ${isMal ? 'malicious' : 'clean'}">
-          ${isMal ? `🔴 ${info.malicious_count} VT Hits` : '🟢 Clean'}
+      <div class="ioc-entry ${isMal ? '' : 'clean'}">
+        <span class="ioc-val" title="${escapeHtml(h)}">${escapeHtml(h.slice(0, 16))}...</span>
+        <span class="tag ${isMal ? 'tag-critical' : 'tag-clean'}">
+          ${isMal ? `VT: ${info.malicious_count}/72` : 'CLEAN'}
         </span>
       </div>
     `;
@@ -383,10 +403,10 @@ function renderSideContext(logs = [], threatIntel = {}) {
   domains.forEach(([d, info]) => {
     const isMal = info.malicious_count > 0;
     html += `
-      <div class="ioc-pill ${isMal ? '' : 'clean'}">
-        <div class="ioc-val" title="${d}">${d}</div>
-        <span class="ioc-vt-badge ${isMal ? 'malicious' : 'clean'}">
-          ${isMal ? `🔴 ${info.malicious_count} VT Hits` : '🟢 Clean'}
+      <div class="ioc-entry ${isMal ? '' : 'clean'}">
+        <span class="ioc-val" title="${escapeHtml(d)}">${escapeHtml(d)}</span>
+        <span class="tag ${isMal ? 'tag-critical' : 'tag-clean'}">
+          ${isMal ? `VT: ${info.malicious_count}/72` : 'CLEAN'}
         </span>
       </div>
     `;
@@ -396,11 +416,11 @@ function renderSideContext(logs = [], threatIntel = {}) {
 
 function getSeverityColor(sev) {
   const s = (sev || "").toUpperCase();
-  if (s === "CRITICAL") return "var(--accent-red)";
-  if (s === "HIGH") return "var(--accent-amber)";
-  if (s === "MEDIUM") return "#fbbf24";
-  if (s === "LOW") return "var(--accent-blue)";
-  return "var(--text-dim)";
+  if (s === "CRITICAL") return "var(--color-critical)";
+  if (s === "HIGH") return "var(--color-high)";
+  if (s === "MEDIUM") return "var(--color-medium)";
+  if (s === "LOW") return "var(--color-low)";
+  return "var(--color-info)";
 }
 
 // 4. Multi-SIEM Log Explorer
@@ -411,71 +431,82 @@ function initLogExplorer() {
   const reloadSeedBtn = document.getElementById("reloadSeedBtn");
   const ingestModalBtn = document.getElementById("ingestModalBtn");
 
-  sourceFilter.addEventListener("change", () => loadLogs());
-  sevFilter.addEventListener("change", () => loadLogs());
-  searchInput.addEventListener("input", debounce(() => loadLogs(), 300));
+  if (sourceFilter) sourceFilter.addEventListener("change", () => loadLogs());
+  if (sevFilter) sevFilter.addEventListener("change", () => loadLogs());
+  if (searchInput) searchInput.addEventListener("input", debounce(() => loadLogs(), 300));
 
-  reloadSeedBtn.addEventListener("click", async () => {
-    try {
-      const res = await fetch("/api/logs/seed", { method: "POST" });
-      const data = await res.json();
-      showToast(`Loaded ${data.seeded_count} realistic Multi-SIEM attack events`);
-      refreshTelemetry();
-      loadLogs();
-      loadThreatIntelHub();
-      renderMitreMatrix();
-    } catch (err) {
-      showToast("Failed to reload seed logs: " + err.message, "error");
-    }
-  });
+  if (reloadSeedBtn) {
+    reloadSeedBtn.addEventListener("click", async () => {
+      try {
+        const res = await fetch("/api/logs/seed", { method: "POST" });
+        const data = await res.json();
+        showToast(`Reset Multi-SIEM dataset: Loaded ${data.seeded_count} attack events`);
+        refreshTelemetry();
+        loadLogs();
+        loadThreatIntelHub();
+        renderMitreMatrix();
+      } catch (err) {
+        showToast("Failed to reset dataset: " + err.message, "error");
+      }
+    });
+  }
 
-  ingestModalBtn.addEventListener("click", () => {
-    document.getElementById("ingestModal").classList.add("active");
-  });
+  const ingestModal = document.getElementById("ingestModal");
+  if (ingestModalBtn && ingestModal) {
+    ingestModalBtn.addEventListener("click", () => {
+      ingestModal.classList.add("active");
+    });
+  }
+
+  // Modal dismiss buttons
+  const btnCloseIngestModal = document.getElementById("btnCloseIngestModal");
+  const btnCancelIngest = document.getElementById("btnCancelIngest");
+  const closeIngestModal = () => { if (ingestModal) ingestModal.classList.remove("active"); };
+  if (btnCloseIngestModal) btnCloseIngestModal.addEventListener("click", closeIngestModal);
+  if (btnCancelIngest) btnCancelIngest.addEventListener("click", closeIngestModal);
 
   // Ingestion Modal submit
-  document.getElementById("btnExecuteIngest").addEventListener("click", async () => {
-    const formatType = document.getElementById("ingestFormatSelect").value;
-    const rawText = document.getElementById("ingestRawText").value.trim();
-    const fileInput = document.getElementById("ingestFileInput");
+  const btnExecuteIngest = document.getElementById("btnExecuteIngest");
+  if (btnExecuteIngest) {
+    btnExecuteIngest.addEventListener("click", async () => {
+      const formatType = document.getElementById("ingestFormatSelect").value;
+      const rawText = document.getElementById("ingestRawText").value.trim();
+      const fileInput = document.getElementById("ingestFileInput");
 
-    if (fileInput.files.length > 0) {
-      const formData = new FormData();
-      formData.append("file", fileInput.files[0]);
-      formData.append("format_type", formatType);
-      try {
-        const res = await fetch("/api/logs/upload", { method: "POST", body: formData });
-        const data = await res.json();
-        showToast(`Ingested ${data.ingested_count} logs from ${data.filename}`);
-        document.getElementById("ingestModal").classList.remove("active");
-        refreshTelemetry();
-        loadLogs();
-      } catch (e) {
-        showToast("Upload failed: " + e.message, "error");
+      if (fileInput && fileInput.files.length > 0) {
+        const formData = new FormData();
+        formData.append("file", fileInput.files[0]);
+        formData.append("format_type", formatType);
+        try {
+          const res = await fetch("/api/logs/upload", { method: "POST", body: formData });
+          const data = await res.json();
+          showToast(`Ingested ${data.ingested_count} logs from ${data.filename}`);
+          closeIngestModal();
+          refreshTelemetry();
+          loadLogs();
+        } catch (e) {
+          showToast("Upload failed: " + e.message, "error");
+        }
+      } else if (rawText) {
+        try {
+          const res = await fetch("/api/logs/ingest-text", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ content: rawText, format_type: formatType })
+          });
+          const data = await res.json();
+          showToast(`Ingested ${data.ingested_count} logs from text input`);
+          closeIngestModal();
+          refreshTelemetry();
+          loadLogs();
+        } catch (e) {
+          showToast("Ingestion failed: " + e.message, "error");
+        }
+      } else {
+        showToast("Select a log file or enter raw text to ingest", "error");
       }
-    } else if (rawText) {
-      try {
-        const res = await fetch("/api/logs/ingest-text", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ content: rawText, format_type: formatType })
-        });
-        const data = await res.json();
-        showToast(`Ingested ${data.ingested_count} logs from text input`);
-        document.getElementById("ingestModal").classList.remove("active");
-        refreshTelemetry();
-        loadLogs();
-      } catch (e) {
-        showToast("Ingestion failed: " + e.message, "error");
-      }
-    } else {
-      showToast("Please select a file or paste log text to ingest", "error");
-    }
-  });
-
-  document.getElementById("btnCloseIngestModal").addEventListener("click", () => {
-    document.getElementById("ingestModal").classList.remove("active");
-  });
+    });
+  }
 }
 
 async function loadLogs() {
@@ -487,32 +518,35 @@ async function loadLogs() {
     const url = `/api/logs?source=${encodeURIComponent(source)}&severity=${encodeURIComponent(severity)}&search=${encodeURIComponent(search)}&limit=100`;
     const res = await fetch(url);
     const data = await res.json();
-    activeLogs = data.logs;
+    activeLogs = data.logs || [];
 
-    document.getElementById("logCountBadge").textContent = `${data.total} Events`;
+    const counter = document.getElementById("logCountBadge");
+    if (counter) counter.textContent = `${data.total || 0} Events`;
+
     const tbody = document.getElementById("logTableBody");
+    if (!tbody) return;
     tbody.innerHTML = "";
 
-    if (data.logs.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 2rem; color: var(--text-dim);">No security logs found matching filters</td></tr>`;
+    if (activeLogs.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 24px; color: var(--text-muted);">No security events match the specified filter criteria.</td></tr>`;
       return;
     }
 
-    data.logs.forEach(log => {
+    activeLogs.forEach(log => {
       const tr = document.createElement("tr");
       tr.innerHTML = `
-        <td><span class="badge badge-source">${log.siem_source}</span></td>
-        <td><span class="badge badge-${(log.severity || 'low').toLowerCase()}">${log.severity}</span></td>
-        <td style="font-family:var(--font-mono); font-size:0.72rem; color:var(--text-dim);">${formatTimestamp(log.timestamp)}</td>
-        <td><strong style="color:var(--text-main);">${log.alert_name}</strong></td>
+        <td><span class="tag tag-source">${escapeHtml(log.siem_source)}</span></td>
+        <td><span class="tag tag-${(log.severity || 'low').toLowerCase()}">${escapeHtml(log.severity)}</span></td>
+        <td class="text-mono" style="font-size:11px; color:var(--text-muted);">${formatTimestamp(log.timestamp)}</td>
+        <td><strong style="color:var(--text-primary);">${escapeHtml(log.alert_name)}</strong></td>
         <td>
-          <span class="code-pill">${log.src_ip || '—'}${log.src_port ? ':' + log.src_port : ''}</span>
-          <span style="color:var(--accent-blue);">➔</span>
-          <span class="code-pill">${log.dest_ip || '—'}${log.dest_port ? ':' + log.dest_port : ''}</span>
+          <span class="code-snippet">${escapeHtml(log.src_ip || '—')}${log.src_port ? ':' + escapeHtml(String(log.src_port)) : ''}</span>
+          <span style="color:var(--text-muted);">&rarr;</span>
+          <span class="code-snippet">${escapeHtml(log.dest_ip || '—')}${log.dest_port ? ':' + escapeHtml(String(log.dest_port)) : ''}</span>
         </td>
-        <td><span style="color:var(--accent-cyan); font-family:var(--font-mono); font-size:0.75rem;">${log.user || '—'}</span></td>
-        <td>
-          <button class="btn btn-outline btn-sm view-log-btn" data-id="${log.id}">Inspect</button>
+        <td><span class="text-mono text-cyan" style="font-size:11px;">${escapeHtml(log.user || '—')}</span></td>
+        <td style="text-align: center;">
+          <button class="btn btn-secondary btn-xs view-log-btn" data-id="${escapeHtml(log.id)}">Inspect</button>
         </td>
       `;
       tbody.appendChild(tr);
@@ -532,21 +566,41 @@ async function loadLogs() {
 
 function showLogInspectorModal(log) {
   const modal = document.getElementById("logInspectorModal");
-  document.getElementById("inspectSiemSource").textContent = log.siem_source;
-  document.getElementById("inspectSeverity").textContent = log.severity;
-  document.getElementById("inspectSeverity").className = `badge badge-${log.severity.toLowerCase()}`;
-  document.getElementById("inspectAlertName").textContent = log.alert_name;
-  document.getElementById("inspectTimestamp").textContent = log.timestamp;
-  document.getElementById("inspectSrcDest").textContent = `${log.src_ip || 'N/A'}:${log.src_port || ''} ➔ ${log.dest_ip || 'N/A'}:${log.dest_port || ''}`;
-  document.getElementById("inspectUser").textContent = log.user || 'N/A';
-  document.getElementById("inspectFileHash").textContent = log.file_hash || 'N/A';
-  document.getElementById("inspectDomain").textContent = log.domain || 'N/A';
+  if (!modal) return;
 
-  document.getElementById("inspectDetailsJson").textContent = JSON.stringify(log.details || {}, null, 2);
-  document.getElementById("inspectRawLog").textContent = log.raw_log || 'N/A';
+  const inspectSiemSource = document.getElementById("inspectSiemSource");
+  const inspectSeverity = document.getElementById("inspectSeverity");
+  const inspectAlertName = document.getElementById("inspectAlertName");
+  const inspectTimestamp = document.getElementById("inspectTimestamp");
+  const inspectSrcDest = document.getElementById("inspectSrcDest");
+  const inspectUser = document.getElementById("inspectUser");
+  const inspectFileHash = document.getElementById("inspectFileHash");
+  const inspectDomain = document.getElementById("inspectDomain");
+  const inspectDetailsJson = document.getElementById("inspectDetailsJson");
+  const inspectRawLog = document.getElementById("inspectRawLog");
+
+  if (inspectSiemSource) inspectSiemSource.textContent = log.siem_source;
+  if (inspectSeverity) {
+    inspectSeverity.textContent = log.severity;
+    inspectSeverity.className = `tag tag-${(log.severity || 'low').toLowerCase()}`;
+  }
+  if (inspectAlertName) inspectAlertName.textContent = log.alert_name;
+  if (inspectTimestamp) inspectTimestamp.textContent = log.timestamp;
+  if (inspectSrcDest) inspectSrcDest.textContent = `${log.src_ip || 'N/A'}:${log.src_port || ''} \u2192 ${log.dest_ip || 'N/A'}:${log.dest_port || ''}`;
+  if (inspectUser) inspectUser.textContent = log.user || 'N/A';
+  if (inspectFileHash) inspectFileHash.textContent = log.file_hash || 'N/A';
+  if (inspectDomain) inspectDomain.textContent = log.domain || 'N/A';
+
+  if (inspectDetailsJson) inspectDetailsJson.textContent = JSON.stringify(log.details || {}, null, 2);
+  if (inspectRawLog) inspectRawLog.textContent = log.raw_log || 'N/A';
 
   modal.classList.add("active");
-  document.getElementById("btnCloseInspector").onclick = () => modal.classList.remove("active");
+
+  const closeInspector = () => modal.classList.remove("active");
+  const btnCloseInspector = document.getElementById("btnCloseInspector");
+  const btnDismissInspector = document.getElementById("btnDismissInspector");
+  if (btnCloseInspector) btnCloseInspector.onclick = closeInspector;
+  if (btnDismissInspector) btnDismissInspector.onclick = closeInspector;
 }
 
 // 5. Threat Intelligence & VirusTotal Hub
@@ -574,48 +628,61 @@ function initThreatIntel() {
       showToast("Scan error: " + e.message, "error");
     } finally {
       scanBtn.disabled = false;
-      scanBtn.innerHTML = `<svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg> Analyze IOC`;
+      scanBtn.textContent = "Analyze Indicator";
     }
   };
 
-  scanBtn.addEventListener("click", runScan);
-  input.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") runScan();
-  });
+  if (scanBtn) scanBtn.addEventListener("click", runScan);
+  if (input) {
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") runScan();
+    });
+  }
 }
 
 function renderVtScanResult(data) {
   const container = document.getElementById("vtScanResultContainer");
+  if (!container) return;
   container.style.display = "flex";
 
   const total = (data.malicious_count || 0) + (data.suspicious_count || 0) + (data.harmless_count || 0) + (data.undetected_count || 0) || 72;
   const mal = data.malicious_count || 0;
-  const isMalicious = mal > 0;
 
-  document.getElementById("vtIndicatorDisplay").textContent = data.indicator;
-  document.getElementById("vtIocType").textContent = data.ioc_type.toUpperCase();
-  document.getElementById("vtScoreCircle").className = `score-circle ${isMalicious ? 'malicious' : 'clean'}`;
-  document.getElementById("vtScoreNum").textContent = mal;
-  document.getElementById("vtScoreTotal").textContent = `/${total}`;
-  document.getElementById("vtReputationNum").textContent = data.reputation || 0;
-  document.getElementById("vtSourceLabel").textContent = data.source || "VirusTotal v3";
+  const vtIndicatorDisplay = document.getElementById("vtIndicatorDisplay");
+  const vtIocType = document.getElementById("vtIocType");
+  const vtScoreDisplay = document.getElementById("vtScoreDisplay");
+  const vtReputationNum = document.getElementById("vtReputationNum");
+  const vtSourceLabel = document.getElementById("vtSourceLabel");
+
+  if (vtIndicatorDisplay) vtIndicatorDisplay.textContent = data.indicator;
+  if (vtIocType) vtIocType.textContent = (data.ioc_type || "IOC").toUpperCase();
+  if (vtScoreDisplay) {
+    vtScoreDisplay.textContent = `${mal} / ${total}`;
+    vtScoreDisplay.className = mal > 0 ? "metric-val text-danger" : "metric-val text-success";
+  }
+  if (vtReputationNum) vtReputationNum.textContent = data.reputation || 0;
+  if (vtSourceLabel) vtSourceLabel.textContent = data.source || "VirusTotal v3";
 
   // Render tags
   const tagsContainer = document.getElementById("vtTagsContainer");
-  tagsContainer.innerHTML = (data.tags || []).map(t => `<span class="badge badge-high">${t}</span>`).join(' ');
+  if (tagsContainer) {
+    tagsContainer.innerHTML = (data.tags || []).map(t => `<span class="tag tag-medium">${escapeHtml(t)}</span>`).join(' ');
+  }
 
   // Render engine detections
   const engineDiv = document.getElementById("vtEngineDetections");
-  const engines = Object.entries(data.engine_details || {});
-  if (engines.length === 0) {
-    engineDiv.innerHTML = `<span style="color:var(--text-dim); font-size:0.75rem;">No security engines flagged this indicator as malicious.</span>`;
-  } else {
-    engineDiv.innerHTML = engines.map(([eng, det]) => `
-      <div style="display:flex; justify-content:space-between; font-size:0.72rem; padding:0.25rem 0; border-bottom:1px solid rgba(255,255,255,0.04);">
-        <strong style="color:var(--text-main); font-family:var(--font-mono);">${eng}</strong>
-        <span style="color:var(--accent-red);">${det}</span>
-      </div>
-    `).join('');
+  if (engineDiv) {
+    const engines = Object.entries(data.engine_details || {});
+    if (engines.length === 0) {
+      engineDiv.innerHTML = `<span style="color:var(--text-muted); font-size:11px;">Zero security vendor detections flagged for this indicator.</span>`;
+    } else {
+      engineDiv.innerHTML = engines.map(([eng, det]) => `
+        <div class="engine-row">
+          <span style="color:var(--text-primary); font-weight:600;">${escapeHtml(eng)}</span>
+          <span class="text-danger">${escapeHtml(det)}</span>
+        </div>
+      `).join('');
+    }
   }
 }
 
@@ -624,10 +691,11 @@ async function loadThreatIntelHub() {
     const res = await fetch("/api/threat-intel/cached");
     allCachedIntel = await res.json();
     const tbody = document.getElementById("cachedIntelTableBody");
+    if (!tbody) return;
     tbody.innerHTML = "";
 
     if (allCachedIntel.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:1.5rem; color:var(--text-dim);">No cached threat intelligence. Scan an IOC above.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:18px; color:var(--text-muted);">Local threat intelligence registry is empty. Query an indicator above.</td></tr>`;
       return;
     }
 
@@ -635,19 +703,19 @@ async function loadThreatIntelHub() {
       const isMal = item.malicious_count > 0;
       const tr = document.createElement("tr");
       tr.innerHTML = `
-        <td><span class="badge badge-source">${item.ioc_type}</span></td>
-        <td><strong style="color:var(--text-main); font-family:var(--font-mono);">${item.indicator}</strong></td>
+        <td><span class="tag tag-source">${escapeHtml(item.ioc_type)}</span></td>
+        <td><strong class="text-mono" style="color:var(--text-primary); font-size:11px;">${escapeHtml(item.indicator)}</strong></td>
         <td>
-          <span class="ioc-vt-badge ${isMal ? 'malicious' : 'clean'}">
-            ${isMal ? `🔴 ${item.malicious_count} Malicious` : '🟢 Clean'}
+          <span class="tag ${isMal ? 'tag-critical' : 'tag-clean'}">
+            ${isMal ? `${item.malicious_count} Malicious` : 'Clean (0)'}
           </span>
         </td>
-        <td style="font-family:var(--font-mono); font-size:0.75rem;">${item.reputation}</td>
+        <td class="text-mono" style="font-size:11px;">${escapeHtml(String(item.reputation))}</td>
         <td>
-          ${(item.tags || []).slice(0, 3).map(t => `<span class="badge badge-medium" style="font-size:0.62rem;">${t}</span>`).join(' ')}
+          ${(item.tags || []).slice(0, 3).map(t => `<span class="tag tag-medium">${escapeHtml(t)}</span>`).join(' ')}
         </td>
-        <td>
-          <button class="btn btn-outline btn-sm lookup-cached-btn" data-ioc="${item.indicator}">Inspect</button>
+        <td style="text-align: center;">
+          <button class="btn btn-secondary btn-xs lookup-cached-btn" data-ioc="${escapeHtml(item.indicator)}">Inspect</button>
         </td>
       `;
       tbody.appendChild(tr);
@@ -671,27 +739,26 @@ function initMitreMatrix() {
 }
 
 function renderMitreMatrix() {
-  // Built from ingested multi-SIEM logs
   const matrixPhases = {
     "Initial Access": [
-      { id: "T1566.002", name: "Spearphishing Link", siem: "Sentinel", alert: "Defender for Office 365: Phishing Link Clicked", entity: "victim_jdoe@enterprise.corp" }
+      { id: "T1566.002", name: "Spearphishing Link", siem: "Sentinel", alert: "Office 365: Phishing Link Clicked", entity: "victim_jdoe@enterprise.corp" }
     ],
     "Execution": [
-      { id: "T1059.001", name: "PowerShell EncodedCommand", siem: "Elastic", alert: "Suspicious Obfuscated PowerShell Execution", entity: "WINWORD.EXE ➔ powershell.exe" }
+      { id: "T1059.001", name: "PowerShell EncodedCommand", siem: "Elastic", alert: "Obfuscated PowerShell Execution", entity: "WINWORD.EXE \u2192 powershell.exe" }
     ],
     "Credential Access": [
       { id: "T1003.001", name: "LSASS Memory Dump", siem: "Splunk", alert: "Mimikatz sekurlsa Ticket Request", entity: "victim_jdoe / krbtgt" },
       { id: "T1110.001", name: "SSH Password Spray", siem: "Wazuh", alert: "SSH Brute-force & Sudo Elevation", entity: "root / 45.33.32.156" }
     ],
     "Lateral Movement": [
-      { id: "T1550.002", name: "Pass the Hash (SMB)", siem: "QRadar", alert: "PsExec / WMI execution targeting Domain Controller", entity: "10.0.4.15 ➔ 10.0.4.200" }
+      { id: "T1550.002", name: "Pass the Hash (SMB)", siem: "QRadar", alert: "PsExec / WMI Domain Controller Access", entity: "10.0.4.15 \u2192 10.0.4.200" }
     ],
     "Command & Control": [
       { id: "T1071.001", name: "Web Protocols / C2 Beacon", siem: "Splunk", alert: "Cobalt Strike Malleable C2 Beaconing", entity: "185.220.101.5:8443" },
       { id: "T1048.003", name: "DNS Tunneling Protocol", siem: "Elastic", alert: "High Entropy DNS Exfil Queries", entity: "cdn-sysinternals.com" }
     ],
     "Impact": [
-      { id: "T1486", name: "Data Encrypted for Impact", siem: "Sentinel", alert: "Defender: Mass File Encryption (LockBit 3.0)", entity: "1,420 files .lockbit" },
+      { id: "T1486", name: "Data Encrypted for Impact", siem: "Sentinel", alert: "Defender: Mass File Encryption (LockBit)", entity: "1,420 files .lockbit" },
       { id: "T1490", name: "Inhibit System Recovery", siem: "Wazuh", alert: "Shadow Copies Deleted via vssadmin", entity: "vssadmin delete shadows" }
     ]
   };
@@ -705,18 +772,18 @@ function renderMitreMatrix() {
     col.className = "mitre-col";
     col.innerHTML = `
       <div class="mitre-header">
-        ${phase} <span style="color:var(--text-dim); font-size:0.7rem; font-family:var(--font-mono);">(${techniques.length})</span>
+        ${escapeHtml(phase)} <span style="color:var(--text-muted); font-size:10px;">(${techniques.length})</span>
       </div>
       <div class="mitre-cards">
         ${techniques.map(t => `
           <div class="tactic-card">
-            <div style="display:flex; justify-content:space-between;">
-              <span class="tactic-id">${t.id}</span>
-              <span class="badge badge-source">${t.siem}</span>
+            <div class="tactic-header-row">
+              <span class="tactic-id">${escapeHtml(t.id)}</span>
+              <span class="tag tag-source">${escapeHtml(t.siem)}</span>
             </div>
-            <div class="tactic-name">${t.name}</div>
-            <div class="tactic-alert">${t.alert}</div>
-            <div style="color:var(--accent-cyan); font-family:var(--font-mono); font-size:0.66rem; margin-top:0.2rem;">${t.entity}</div>
+            <div class="tactic-name">${escapeHtml(t.name)}</div>
+            <div class="tactic-alert">${escapeHtml(t.alert)}</div>
+            <div class="tactic-entity">${escapeHtml(t.entity)}</div>
           </div>
         `).join('')}
       </div>
@@ -728,40 +795,48 @@ function renderMitreMatrix() {
 // 7. LangSmith Pipeline Evaluation
 function initLangSmithEval() {
   const runBtn = document.getElementById("btnRunLangSmithEval");
-  runBtn.addEventListener("click", async () => {
-    try {
-      runBtn.disabled = true;
-      runBtn.textContent = "Running Benchmark...";
-      const res = await fetch("/api/eval/run", { method: "POST" });
-      const data = await res.json();
-      renderEvalReport(data);
-      loadEvalHistory();
-      showToast(`LangSmith Evaluation finished with ${data.accuracy_score}% accuracy`);
-    } catch (e) {
-      showToast("Evaluation failed: " + e.message, "error");
-    } finally {
-      runBtn.disabled = false;
-      runBtn.innerHTML = `<svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/></svg> Run Pipeline Evaluation`;
-    }
-  });
+  if (runBtn) {
+    runBtn.addEventListener("click", async () => {
+      try {
+        runBtn.disabled = true;
+        runBtn.textContent = "Running Benchmark...";
+        const res = await fetch("/api/eval/run", { method: "POST" });
+        const data = await res.json();
+        renderEvalReport(data);
+        loadEvalHistory();
+        showToast(`LangSmith Benchmark complete: ${data.accuracy_score}% Accuracy`);
+      } catch (e) {
+        showToast("Evaluation failed: " + e.message, "error");
+      } finally {
+        runBtn.disabled = false;
+        runBtn.textContent = "Run Pipeline Evaluation";
+      }
+    });
+  }
 
   loadEvalHistory();
 }
 
 function renderEvalReport(data) {
-  document.getElementById("evalAccuracyDisplay").textContent = `${data.accuracy_score}%`;
-  document.getElementById("evalLatencyDisplay").textContent = `${data.avg_latency_ms}ms`;
-  document.getElementById("evalPassedDisplay").textContent = `${data.passed_count}/${data.test_cases_count}`;
-  document.getElementById("evalSyncStatus").textContent = data.langsmith_synced ? "Synced to Cloud" : "Local Benchmark";
+  const evalAccuracyDisplay = document.getElementById("evalAccuracyDisplay");
+  const evalLatencyDisplay = document.getElementById("evalLatencyDisplay");
+  const evalPassedDisplay = document.getElementById("evalPassedDisplay");
+  const evalSyncStatus = document.getElementById("evalSyncStatus");
+
+  if (evalAccuracyDisplay) evalAccuracyDisplay.textContent = `${data.accuracy_score}%`;
+  if (evalLatencyDisplay) evalLatencyDisplay.textContent = `${data.avg_latency_ms}ms`;
+  if (evalPassedDisplay) evalPassedDisplay.textContent = `${data.passed_count} / ${data.test_cases_count}`;
+  if (evalSyncStatus) evalSyncStatus.textContent = data.langsmith_synced ? "Synced to Cloud" : "Local Benchmark";
 
   const tbody = document.getElementById("evalBenchmarkTableBody");
+  if (!tbody) return;
   tbody.innerHTML = (data.results || []).map(r => `
     <tr>
-      <td><span class="code-pill">${r.id}</span></td>
-      <td><strong>${r.name}</strong></td>
-      <td><span class="badge ${r.status === 'PASSED' ? 'badge-low' : 'badge-critical'}">${r.status}</span></td>
-      <td style="font-family:var(--font-mono); font-size:0.75rem;">${r.latency_ms}ms</td>
-      <td style="color:var(--text-muted); font-size:0.75rem;">${r.details}</td>
+      <td><span class="code-snippet">${escapeHtml(r.id)}</span></td>
+      <td><strong>${escapeHtml(r.name)}</strong></td>
+      <td><span class="tag ${r.status === 'PASSED' ? 'tag-clean' : 'tag-critical'}">${escapeHtml(r.status)}</span></td>
+      <td class="text-mono" style="font-size:11px;">${escapeHtml(String(r.latency_ms))}ms</td>
+      <td style="color:var(--text-secondary); font-size:11px;">${escapeHtml(r.details)}</td>
     </tr>
   `).join('');
 }
@@ -783,52 +858,76 @@ function initSettings() {
   const modal = document.getElementById("settingsModal");
   const openBtn = document.getElementById("openSettingsBtn");
   const closeBtn = document.getElementById("btnCloseSettings");
+  const cancelBtn = document.getElementById("btnCancelSettings");
   const saveBtn = document.getElementById("btnSaveSettings");
 
-  openBtn.addEventListener("click", async () => {
-    try {
-      const res = await fetch("/api/settings");
-      const data = await res.json();
-      document.getElementById("geminiKeyInput").placeholder = data.gemini_configured ? `Configured (${data.gemini_key_masked})` : "Enter Gemini API Key";
-      document.getElementById("vtKeyInput").placeholder = data.virustotal_configured ? `Configured (${data.virustotal_key_masked})` : "Enter VirusTotal v3 API Key";
-      document.getElementById("langsmithKeyInput").placeholder = data.langsmith_configured ? `Configured (${data.langsmith_key_masked})` : "Enter LangSmith API Key";
-      document.getElementById("langsmithProjectInput").value = data.langsmith_project || "soc-copilot";
-      modal.classList.add("active");
-    } catch (e) {
-      showToast("Failed to load settings: " + e.message, "error");
-    }
-  });
+  const closeModal = () => { if (modal) modal.classList.remove("active"); };
 
-  closeBtn.addEventListener("click", () => modal.classList.remove("active"));
+  if (openBtn) {
+    openBtn.addEventListener("click", async () => {
+      try {
+        const res = await fetch("/api/settings");
+        const data = await res.json();
+        const geminiInput = document.getElementById("geminiKeyInput");
+        const vtInput = document.getElementById("vtKeyInput");
+        const langsmithInput = document.getElementById("langsmithKeyInput");
+        const projectInput = document.getElementById("langsmithProjectInput");
 
-  saveBtn.addEventListener("click", async () => {
-    const geminiKey = document.getElementById("geminiKeyInput").value.trim();
-    const vtKey = document.getElementById("vtKeyInput").value.trim();
-    const langsmithKey = document.getElementById("langsmithKeyInput").value.trim();
+        if (geminiInput) geminiInput.placeholder = data.gemini_configured ? `Configured (${data.gemini_key_masked})` : "Enter Gemini API Key";
+        if (vtInput) vtInput.placeholder = data.virustotal_configured ? `Configured (${data.virustotal_key_masked})` : "Enter VirusTotal API Key";
+        if (langsmithInput) langsmithInput.placeholder = data.langsmith_configured ? `Configured (${data.langsmith_key_masked})` : "Enter LangSmith API Key";
+        if (projectInput) projectInput.value = data.langsmith_project || "soc-copilot";
 
-    try {
-      const res = await fetch("/api/settings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          gemini_key: geminiKey || undefined,
-          vt_key: vtKey || undefined,
-          langsmith_key: langsmithKey || undefined
-        })
-      });
-      const data = await res.json();
-      showToast("Settings and API credentials updated");
-      modal.classList.remove("active");
-      document.getElementById("geminiKeyInput").value = "";
-      document.getElementById("vtKeyInput").value = "";
-      document.getElementById("langsmithKeyInput").value = "";
-    } catch (e) {
-      showToast("Error updating settings: " + e.message, "error");
-    }
-  });
+        if (modal) modal.classList.add("active");
+      } catch (e) {
+        showToast("Failed to load settings: " + e.message, "error");
+      }
+    });
+  }
+
+  if (closeBtn) closeBtn.addEventListener("click", closeModal);
+  if (cancelBtn) cancelBtn.addEventListener("click", closeModal);
+
+  if (saveBtn) {
+    saveBtn.addEventListener("click", async () => {
+      const geminiKey = document.getElementById("geminiKeyInput")?.value.trim();
+      const vtKey = document.getElementById("vtKeyInput")?.value.trim();
+      const langsmithKey = document.getElementById("langsmithKeyInput")?.value.trim();
+
+      try {
+        const res = await fetch("/api/settings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            gemini_key: geminiKey || undefined,
+            vt_key: vtKey || undefined,
+            langsmith_key: langsmithKey || undefined
+          })
+        });
+        await res.json();
+        showToast("API credentials updated successfully");
+        closeModal();
+        if (document.getElementById("geminiKeyInput")) document.getElementById("geminiKeyInput").value = "";
+        if (document.getElementById("vtKeyInput")) document.getElementById("vtKeyInput").value = "";
+        if (document.getElementById("langsmithKeyInput")) document.getElementById("langsmithKeyInput").value = "";
+      } catch (e) {
+        showToast("Error updating settings: " + e.message, "error");
+      }
+    });
+  }
 }
 
-// Utility
+// Utilities
+function escapeHtml(str) {
+  if (str === null || str === undefined) return "";
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 function debounce(fn, delay) {
   let timeout;
   return function(...args) {

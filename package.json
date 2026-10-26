@@ -1,0 +1,33 @@
+{
+  "name": "soc-copilot",
+  "version": "1.0.0",
+  "description": "An AI-powered Security Operations Center (SOC) Copilot and Threat Intelligence Hunting Engine leveraging **Google Gemini LLM**, **LangChain** conversational memory, **SQLite** data management, real-time **VirusTotal v3** threat detection, and **LangSmith** pipeline evaluation across multiple SIEM tools.",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "build": "esbuild src/index.jsx --bundle --outfile=static/js/bundle.js --loader:.js=jsx --loader:.jsx=jsx --define:process.env.NODE_ENV=\\\"production\\\" --minify",
+    "watch": "esbuild src/index.jsx --bundle --outfile=static/js/bundle.js --loader:.js=jsx --loader:.jsx=jsx --define:process.env.NODE_ENV=\\\"production\\\" --watch"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shreenithi23/soc-copilot.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/shreenithi23/soc-copilot/issues"
+  },
+  "homepage": "https://github.com/shreenithi23/soc-copilot#readme",
+  "dependencies": {
+    "lucide-react": "^1.61.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
+  }
+}

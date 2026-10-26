@@ -1,9 +1,13 @@
 # Environment variables & secrets (CRITICAL)
 .env
-.env.local
-!.env.example
+
+
+# Node dependencies
+node_modules/
+package-lock.json
 
 # Virtual Environment
+
 venv/
 env/
 ENV/

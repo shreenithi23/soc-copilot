@@ -15,6 +15,7 @@ from app.database import (
 from app.threat_intel import extract_iocs, batch_enrich_iocs, lookup_ioc
 
 # LangChain imports
+# pyrefly: ignore [missing-import]
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 
 # Senior SOC Analyst System Prompt
@@ -118,9 +119,10 @@ def generate_heuristic_soc_response(user_query: str, history: List[Dict[str, Any
     resp.append(f"**SIEM Telemetry Analyzed:** `{', '.join(siem_sources) if siem_sources else 'Multi-SIEM'}` | **Correlated Events:** `{len(logs)}` | **High/Critical Alerts:** `{len(critical_alerts)}`\n")
 
     # Conversation context reflection
-    if len(history) > 1:
-        prev_user_q = [m["content"] for m in history if m["role"] == "user"][-2] if len([m for m in history if m["role"] == "user"]) > 1 else "prior query"
-        resp.append(f"> **Context Memory:** Continuing analysis from your previous question regarding *\"{prev_user_q[:60]}...\"*\n")
+    user_msgs = [m["content"] for m in history if m.get("role") == "user"]
+    if user_msgs:
+        prior_context = " | ".join(user_msgs)
+        resp.append(f"> **Context Memory:** Continuing investigation retaining session conversation context: *\"{prior_context}\"*\n")
 
     # Threat Intelligence Findings
     resp.append("#### 🚨 VirusTotal Threat Intelligence Matches")
@@ -200,6 +202,7 @@ def process_soc_query(
 
     if gemini_key:
         try:
+            # pyrefly: ignore [missing-import]
             from langchain_google_genai import ChatGoogleGenerativeAI
             
             # Setup LangSmith tracing if key is configured

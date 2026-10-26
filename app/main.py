@@ -10,10 +10,41 @@ from app.database import init_db, get_stats
 from app.seed_data import generate_multi_siem_seed_logs
 from app.api.routes import router as api_router
 
+from contextlib import asynccontextmanager
+from app.api.stream_routes import router as stream_router
+from app.streaming.manager import stream_manager
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    init_db()
+    stats = get_stats()
+    if stats["total_logs"] == 0:
+        print("[Startup] Initializing realistic Multi-SIEM attack scenarios...")
+        generate_multi_siem_seed_logs()
+        print("[Startup] Seeded Multi-SIEM attack logs and IOC cache successfully.")
+    
+    # Initialize Redis streams and launch processing workers
+    try:
+        await stream_manager.start_all(start_producer=False)
+        print("[Startup] Redis Streams processing pipeline initialized successfully.")
+    except Exception as e:
+        print(f"[Startup] Warning: Could not initialize Redis streams: {e}")
+
+    yield
+
+    # Shutdown
+    try:
+        await stream_manager.stop_all()
+        print("[Shutdown] Redis Streams workers shut down cleanly.")
+    except Exception as e:
+        print(f"[Shutdown] Error during stream manager shutdown: {e}")
+
 app = FastAPI(
     title="Multi-SIEM SOC Copilot",
     description="LLM-powered Threat Hunting & Multi-SIEM Security Operations Center Assistant",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan,
 )
 
 # Enable CORS
@@ -27,21 +58,12 @@ app.add_middleware(
 
 # Mount API routes
 app.include_router(api_router, prefix="/api")
+app.include_router(stream_router, prefix="/api")
 
 # Static files directory
 STATIC_DIR = settings.BASE_DIR / "static"
 if STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
-
-@app.on_event("startup")
-def on_startup():
-    """Initialize database and seed baseline dataset if empty."""
-    init_db()
-    stats = get_stats()
-    if stats["total_logs"] == 0:
-        print("[Startup] Initializing realistic Multi-SIEM attack scenarios...")
-        generate_multi_siem_seed_logs()
-        print("[Startup] Seeded Multi-SIEM attack logs and IOC cache successfully.")
 
 @app.get("/")
 def serve_index():
